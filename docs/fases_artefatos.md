@@ -158,12 +158,12 @@ Portanto, o esforço total estimado para testar a funcionalidade é de aproximad
 
 Considerando os seis integrantes do grupo e 74 horas/homem, a divisão uniforme representa aproximadamente 12,3 horas por integrante. Com disponibilidade acadêmica de 6 horas por dia, a duração teórica é de dois dias úteis, além da janela reservada para execução dos testes de carga em host dimensionado.
 
-| Frente | Pessoas | Horas/homem |
-| --- | ---: | ---: |
-| Análise, documentação e BDD | 2 | 16h |
-| Código, testes e mutação | 2 | 36h |
-| Infraestrutura, desempenho e caos | 2 | 22h |
-| **Total** | **6** | **74h** |
+| Frente                            | Pessoas | Horas/homem |
+| --------------------------------- | ------: | ----------: |
+| Análise, documentação e BDD       |       2 |         16h |
+| Código, testes e mutação          |       2 |         36h |
+| Infraestrutura, desempenho e caos |       2 |         22h |
+| **Total**                         |   **6** |     **74h** |
 
 #### Indicadores Esperados
 
@@ -237,14 +237,14 @@ Na primeira execução foram encontrados testes insuficientes e o score foi de 7
 
 Resultado final medido:
 
-| Métrica | Resultado |
-| --- | ---: |
-| Mutation Score | **87,04%** |
-| Mutantes gerados | 325 |
-| Mutantes mortos | 279 |
-| Timeouts | 3 |
-| Sobreviventes | 33 |
-| Sem cobertura | 9 |
+| Métrica          |  Resultado |
+| ---------------- | ---------: |
+| Mutation Score   | **87,04%** |
+| Mutantes gerados |        325 |
+| Mutantes mortos  |        279 |
+| Timeouts         |          3 |
+| Sobreviventes    |         33 |
+| Sem cobertura    |          9 |
 
 O resultado supera a meta obrigatória de 80%. O relatório navegável é gerado em `reports/mutation/mutation.html`.
 
@@ -278,12 +278,12 @@ O ambiente de homologação é definido por Docker Compose e contém Node.js/Exp
 
 ### SLI/SLO
 
-| Cenário | Critério |
-| --- | --- |
-| Operação normal | p95 < 2500 ms |
-| Operação normal | erros inesperados < 5% |
-| Caos | resposta controlada em menos de 5000 ms |
-| Caos | processo permanece disponível |
+| Cenário         | Critério                                     |
+| --------------- | -------------------------------------------- |
+| Operação normal | p95 < 2500 ms                                |
+| Operação normal | erros inesperados < 5%                       |
+| Caos            | resposta controlada em menos de 5000 ms      |
+| Caos            | processo permanece disponível                |
 | Thundering Herd | banco não recebe uma consulta por requisição |
 
 ### Experimentos
