@@ -43,6 +43,9 @@ Cálculo da complexidade ciclomática:
 V(G) = P + 1
 V(G) = 2 + 1 = 3
 
+V(G) = E - N + 2C
+V(G) = 8 - 7 + 2(1) = 3
+
 ### Métricas e Estimativas de Teste
 
 #### Objetivo
