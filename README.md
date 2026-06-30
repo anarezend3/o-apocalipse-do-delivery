@@ -1,9 +1,12 @@
 # O Apocalipse do Delivery
 
 Intrgrantes
-* Aluno 1
-* Aluno 2
 
+- Ana Luiza Rezende
+- Giovanna Ferreira dos Santos de Almeida
+- Gustavo Costa Gabrich
+- Isaac Portela da Silva
+- Miguel Amaral Lessa Xavier
 
 Como as Fases se Conectam a este Código
 
