@@ -13,7 +13,7 @@ class PagamentoRecusado extends ResultadoPagamento {
 
     atualizarPedido(pedido) {
 
-        pedido.status = StatusPedido.FALHOU;
+        pedido.marcarComo(StatusPedido.FALHOU);
 
     }
 

@@ -5,7 +5,7 @@ class PagamentoAprovado extends ResultadoPagamento {
 
     atualizarPedido(pedido) {
 
-        pedido.status = StatusPedido.PROCESSADO;
+        pedido.marcarComo(StatusPedido.PROCESSADO);
 
     }
 

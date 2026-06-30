@@ -1,4 +1,4 @@
-const { DadosInvalidosError } = require('./erros/DadosInvalidosError');
+const { DadosInvalidosError } = require('./erros/DadosInvalidosErro');
 
 const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 
