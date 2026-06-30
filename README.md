@@ -7,6 +7,7 @@ Intrgrantes
 - Gustavo Costa Gabrich
 - Isaac Portela da Silva
 - Miguel Amaral Lessa Xavier
+- Pedro Henrique Morais Marques
 
 Como as Fases se Conectam a este Código
 
