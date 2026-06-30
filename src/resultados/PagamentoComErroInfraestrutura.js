@@ -13,7 +13,7 @@ class PagamentoComErroInfraestrutura extends ResultadoPagamento {
 
     atualizarPedido(pedido) {
 
-        pedido.status = StatusPedido.ERRO_GATEWAY;
+        pedido.marcarComo(StatusPedido.ERRO_GATEWAY);
 
     }
 

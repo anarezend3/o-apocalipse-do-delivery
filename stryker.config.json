@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "jest",
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/domain/**/*.js",
+    "src/services/**/*.js",
+    "src/resultados/**/*.js",
+    "src/infra/CircuitBreaker.js",
+    "src/infra/GatewayPagamentoClient.js",
+    "src/infra/ConfiguracaoCheckoutCache.js",
+    "!src/resultados/ResultadoPagamentos.js"
+  ],
+  "reporters": ["clear-text", "progress", "html"],
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 80
+  },
+  "timeoutMS": 10000
+}

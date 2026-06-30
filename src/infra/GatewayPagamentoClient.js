@@ -1,6 +1,6 @@
 const { PagamentoAprovado } = require('../resultados/PagamentoAprovado');
 const { PagamentoRecusado } = require('../resultados/PagamentoRecusado');
-const { PagamentoComErroDeInfraestrutura } = require('../resultados/PagamentoComErroDeInfraestrutura');
+const { PagamentoComErroInfraestrutura } = require('../resultados/PagamentoComErroInfraestrutura');
 
 const STATUS_APROVADO = 'APROVADO';
 
@@ -28,45 +28,67 @@ class GatewayPagamentoClient {
     this.gatewayPagamento = gatewayPagamento;
     this.circuitBreaker = circuitBreaker;
 
-    this.timeoutMs = opcoes.timeoutMs ?? 2000; // RN04
-    this.maxRetentativas = opcoes.maxRetentativas ?? 3; // RN05 (tentativas ADICIONAIS à 1ª chamada)
-    this.intervaloBackoffMs = opcoes.intervaloBackoffMs ?? 500; // RN06
+    this.timeoutMs = opcoes.timeoutMs ?? 2000;
+    this.orcamentoTotalMs = opcoes.orcamentoTotalMs ?? 2500;
+    this.maxRetentativas = opcoes.maxRetentativas ?? 3;
+    this.intervaloBackoffMs = opcoes.intervaloBackoffMs ?? 100;
+    this.jitterMs = opcoes.jitterMs ?? 100;
     this._aguardar = opcoes.aguardar ?? aguardarPadrao;
+    this._agora = opcoes.agora ?? (() => Date.now());
+    this._aleatorio = opcoes.aleatorio ?? Math.random;
   }
 
   /** @param {import('../domain/Pedido').Pedido} pedido */
   async cobrar(pedido) {
     if (this.circuitBreaker.estaAberto()) {
-      return new PagamentoComErroDeInfraestrutura('circuit_breaker_aberto');
+      return new PagamentoComErroInfraestrutura('circuit_breaker_aberto');
     }
 
     let ultimaFalha = null;
     const totalDeChamadas = this.maxRetentativas + 1;
+    const prazo = this._agora() + this.orcamentoTotalMs;
 
     for (let tentativa = 1; tentativa <= totalDeChamadas; tentativa++) {
+      const tempoRestante = prazo - this._agora();
+      if (tempoRestante <= 0) break;
+
       try {
-        const respostaBruta = await this._chamarComTimeout(pedido);
+        const respostaBruta = await this._chamarComTimeout(
+          pedido,
+          Math.min(this.timeoutMs, tempoRestante),
+        );
         this.circuitBreaker.registrarSucesso();
         return this._interpretar(respostaBruta);
       } catch (erro) {
         ultimaFalha = erro;
         this.circuitBreaker.registrarFalha();
 
-        const haveraNovaTentativa = tentativa < totalDeChamadas;
+        const backoff = this._calcularBackoff(tentativa);
+        const haveraNovaTentativa =
+          tentativa < totalDeChamadas &&
+          this._agora() + backoff < prazo;
+
         if (haveraNovaTentativa) {
-          await this._aguardar(this.intervaloBackoffMs);
+          await this._aguardar(backoff);
         }
       }
     }
 
-    return new PagamentoComErroDeInfraestrutura(ultimaFalha ? ultimaFalha.message : 'falha_desconhecida');
+    return new PagamentoComErroInfraestrutura(
+      ultimaFalha ? ultimaFalha.message : 'orcamento_de_tempo_esgotado',
+    );
   }
 
-  _chamarComTimeout(pedido) {
+  _calcularBackoff(tentativa) {
+    const exponencial = this.intervaloBackoffMs * (2 ** (tentativa - 1));
+    return exponencial + Math.floor(this._aleatorio() * (this.jitterMs + 1));
+  }
+
+  _chamarComTimeout(pedido, timeoutMs) {
     const chamadaAoGateway = this.gatewayPagamento.cobrar(pedido.valor, pedido.cartao);
 
     return new Promise((resolve, reject) => {
-      const idDoTimeout = setTimeout(() => reject(new TimeoutGatewayError(this.timeoutMs)), this.timeoutMs);
+      const idDoTimeout = setTimeout(() => reject(new TimeoutGatewayError(timeoutMs)), timeoutMs);
 
       chamadaAoGateway.then(
         (valor) => {

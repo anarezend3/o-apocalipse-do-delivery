@@ -1,0 +1,16 @@
+[
+  {
+    "name": "gateway_proxy",
+    "listen": "0.0.0.0:8666",
+    "upstream": "gateway:4000",
+    "enabled": true,
+    "toxics": []
+  },
+  {
+    "name": "redis_proxy",
+    "listen": "0.0.0.0:6380",
+    "upstream": "redis:6379",
+    "enabled": true,
+    "toxics": []
+  }
+]

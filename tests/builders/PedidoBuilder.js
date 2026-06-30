@@ -1,23 +1,17 @@
+const { Pedido } = require('../../src/domain/Pedido');
+const { SolicitacaoCheckout } = require('../../src/domain/SolicitacaoCheckout');
+
 class PedidoBuilder {
 
     constructor() {
 
         this.pedido = {
-            id: 1,
-            clienteNome: "João",
             clienteEmail: "joao@email.com",
             cartao: {
                 numero: "4111111111111111",
                 validade: "12/30",
                 cvv: "123"
             },
-            itens: [
-                {
-                    produto: "Notebook",
-                    quantidade: 1,
-                    preco: 3500
-                }
-            ],
             valor: 3500,
             status: "PENDENTE"
         };
@@ -45,13 +39,6 @@ class PedidoBuilder {
 
     }
 
-    semItens() {
-
-        this.pedido.itens = [];
-        return this;
-
-    }
-
     comCartao(cartao) {
 
         this.pedido.cartao = cartao;
@@ -61,9 +48,10 @@ class PedidoBuilder {
 
     build() {
 
-        return {
-            ...this.pedido
-        };
+        const solicitacao = SolicitacaoCheckout.criar(this.pedido);
+        const pedido = new Pedido(solicitacao);
+        pedido.status = this.pedido.status;
+        return pedido;
 
     }
 

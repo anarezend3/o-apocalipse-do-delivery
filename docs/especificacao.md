@@ -46,8 +46,8 @@ Em cenários de alto tráfego (como a Black Friday), este componente atua como u
 
 ### RF04 – Resiliência de Rede e Políticas de Tolerância a Falhas
 * **RN04 (Timeout Operacional):** O microsserviço não pode permitir que instabilidades na API externa do gateway de pagamento retenham recursos locais do servidor Express. Fica estabelecido um tempo limite rígido (Timeout) de **2000 milissegundos (2 segundos)** para a resposta do método `cobrar`. Se a API externa ultrapassar esse tempo sem responder, a conexão deve ser encerrada por timeout.
-* **RN05 (Mecanismo de Retentativas - Retry):** Diante de falhas puras de infraestrutura (como conexões recusadas, erros internos do servidor do gateway `HTTP 5xx` ou ocorrência do Timeout definido na RN04), o sistema deve acionar uma política automática de retentativas. O sistema tentará executar a cobrança por **até 3 vezes** adicionais.
-* **RN06 (Intervalo de Backoff):** Cada tentativa de reexecução (Retry) deve aguardar um intervalo fixo de **500 milissegundos** antes de ser submetida, dando tempo para a estabilização da rede de destino.
+* **RN05 (Mecanismo de Retentativas - Retry):** Diante de falhas puras de infraestrutura, o sistema pode executar até **3 tentativas adicionais**, desde que ainda exista tempo no orçamento global de 2500 ms.
+* **RN06 (Backoff e Jitter):** Cada retry usa backoff exponencial a partir de 100 ms e jitter aleatório de até 100 ms. Uma tentativa não é iniciada quando sua espera consumiria o orçamento global.
 
 ### RF05 – Degradação Graciosa e Fallback (Circuit Breaker)
 * **RN07 (Status de Erro Crítico):** Se o limite de 3 retentativas automáticas for esgotado sem sucesso, ou se o disjuntor do padrão *Circuit Breaker* estiver aberto (taxa de erro de rede acumulada superior a 50%), o sistema deverá executar o plano de contingência (*Fallback*):

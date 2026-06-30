@@ -28,6 +28,10 @@ class GatewayPagamentoStub {
       return { status: 'APROVADO' };
     }
 
+    if (this.cenario === 'TIMEOUT') {
+      return new Promise(() => {});
+    }
+
     throw new Error('cenário não definido');
   }
 }

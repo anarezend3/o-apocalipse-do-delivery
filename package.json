@@ -1,17 +1,29 @@
 {
   "name": "checkout-refatorado",
   "version": "1.0.0",
-  "description": "Projeto da Fase 2 - TDD, BDD e Padrões de Projeto",
+  "description": "Checkout resiliente - TDD, BDD, mutação, desempenho e caos",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
     "test": "jest",
+    "test:coverage": "jest --coverage --runInBand",
+    "test:mutation": "stryker run",
     "test:watch": "jest --watch",
     "bdd": "cucumber-js tests/bdd",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "start:worker": "node src/worker.js",
+    "start:gateway": "node src/gateway-mock.js"
   },
   "devDependencies": {
     "@cucumber/cucumber": "^11.3.0",
-    "jest": "^30.0.5"
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/jest-runner": "^9.6.1",
+    "jest": "^30.0.5",
+    "supertest": "^7.2.2"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "pg": "^8.22.0",
+    "redis": "^6.0.1"
   }
 }

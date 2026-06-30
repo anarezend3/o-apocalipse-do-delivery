@@ -1,13 +1,12 @@
-const { PagamentoAprovado } = require('../resultados/PagamentoAprovado');
-const { PagamentoRecusado } = require('../resultados/PagamentoRecusado');
 const { PagamentoComErroInfraestrutura } = require('../resultados/PagamentoComErroInfraestrutura');
 
 class CheckoutService {
 
-    constructor(gatewayPagamento, pedidoRepository, emailService) {
-        this.gatewayPagamento = gatewayPagamento;
+    constructor(gatewayPagamentoClient, pedidoRepository, filaEmail, configuracaoCache = null) {
+        this.gatewayPagamentoClient = gatewayPagamentoClient;
         this.pedidoRepository = pedidoRepository;
-        this.emailService = emailService;
+        this.filaEmail = filaEmail;
+        this.configuracaoCache = configuracaoCache;
     }
 
     async processar(pedido) {
@@ -16,12 +15,11 @@ class CheckoutService {
 
         try {
 
-            const resposta = await this.gatewayPagamento.cobrar(
-                pedido.valor,
-                pedido.cartao
-            );
+            if (this.configuracaoCache) {
+                await this.configuracaoCache.obter();
+            }
 
-            resultado = this.criarResultado(resposta);
+            resultado = await this.gatewayPagamentoClient.cobrar(pedido);
 
         } catch (erro) {
 
@@ -37,31 +35,20 @@ class CheckoutService {
         );
     }
 
-    criarResultado(resposta) {
-
-        if (resposta.status === 'APROVADO') {
-            return new PagamentoAprovado();
-        }
-
-        return new PagamentoRecusado(
-            resposta.motivo || "Pagamento recusado"
-        );
-
-    }
-
     async finalizarPedido(pedido, resultado) {
 
         resultado.atualizarPedido(pedido);
 
         await this.pedidoRepository.salvar(pedido);
 
-        if (resultado.deveEnviarEmailConfirmacao()) {
-
-            await this.emailService.enviarConfirmacao(
-                pedido.clienteEmail,
-                "Pagamento Aprovado"
-            );
-
+        if (resultado.deveEnviarEmailConfirmacao() && this.filaEmail) {
+            Promise.resolve(this.filaEmail.publicar({
+                pedidoId: pedido.id,
+                destinatario: pedido.clienteEmail,
+                mensagem: "Pagamento Aprovado"
+            })).catch(() => {
+                // O pagamento já foi persistido. O worker/DLQ trata falhas da notificação.
+            });
         }
 
         return resultado.paraRespostaHttp(pedido);

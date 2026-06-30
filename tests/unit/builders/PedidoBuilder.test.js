@@ -7,6 +7,7 @@ describe('PedidoBuilder', () => {
         const pedido = new PedidoBuilder().build();
 
         expect(pedido.valor).toBe(3500);
+        expect(pedido.status).toBe('PENDENTE');
 
     });
 
@@ -20,14 +21,9 @@ describe('PedidoBuilder', () => {
 
     });
 
-    test('deve remover itens', () => {
-
-        const pedido = new PedidoBuilder()
-            .semItens()
-            .build();
-
-        expect(pedido.itens.length).toBe(0);
-
+    test('deve alterar email', () => {
+        const pedido = new PedidoBuilder().comEmail('novo@email.com').build();
+        expect(pedido.clienteEmail).toBe('novo@email.com');
     });
 
 });
