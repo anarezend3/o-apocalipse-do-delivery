@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: entregasja
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d entregasja"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    build: .
+    command: ["node", "src/gateway-mock.js"]
+    environment:
+      PORT: 4000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./infra/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"
+    depends_on:
+      redis:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+
+  app:
+    build: .
+    environment:
+      NODE_ENV: homologacao
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/entregasja
+      REDIS_URL: redis://toxiproxy:6380
+      GATEWAY_URL: http://toxiproxy:8666
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      toxiproxy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    build: .
+    command: ["node", "src/worker.js"]
+    environment:
+      REDIS_URL: redis://toxiproxy:6380
+    depends_on:
+      app:
+        condition: service_healthy
+
+  k6:
+    image: grafana/k6:0.49.0
+    profiles: ["load"]
+    volumes:
+      - ./scripts/k6:/scripts:ro
+      - ./reports/k6:/reports
+    environment:
+      BASE_URL: http://app:3000
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
