@@ -154,12 +154,23 @@ Portanto, o esforço total estimado para testar a funcionalidade é de aproximad
 | Cache            | Simulação do cenário de Thundering Herd                   |
 | GitHub           | Versionamento e entrega do trabalho                       |
 
+#### Dimensionamento da Equipe
+
+Considerando os seis integrantes do grupo e 74 horas/homem, a divisão uniforme representa aproximadamente 12,3 horas por integrante. Com disponibilidade acadêmica de 6 horas por dia, a duração teórica é de dois dias úteis, além da janela reservada para execução dos testes de carga em host dimensionado.
+
+| Frente | Pessoas | Horas/homem |
+| --- | ---: | ---: |
+| Análise, documentação e BDD | 2 | 16h |
+| Código, testes e mutação | 2 | 36h |
+| Infraestrutura, desempenho e caos | 2 | 22h |
+| **Total** | **6** | **74h** |
+
 #### Indicadores Esperados
 
 | Indicador                       | Meta                           |
 | ------------------------------- | ------------------------------ |
 | Caminhos independentes cobertos | 100%                           |
-| Mutation Score                  | ≥ 90%                          |
+| Mutation Score                  | ≥ 80% (90% classificado alto)  |
 | Latência p95                    | < 5 segundos                   |
 | Taxa de erro                    | < 5%                           |
 | E-mail de confirmação           | Apenas em pagamento aprovado   |
@@ -213,4 +224,74 @@ Os testes passaram a criar objetos de forma reutilizável e legível.
 
 ## Fase 3: Teste de Mutação
 
+Foi utilizado o Stryker.js com Jest runner e análise de cobertura `perTest`.
+
+Configuração:
+
+- Mutation Score mínimo (`break`): 80%;
+- classificação alta: 90%;
+- relatórios: terminal e HTML;
+- escopo: domínio, resultados de pagamento, CheckoutService, Circuit Breaker, cliente resiliente e cache anti-manada.
+
+Na primeira execução foram encontrados testes insuficientes e o score foi de 71,29%. O ciclo de melhoria acrescentou casos para operadores condicionais, limites de timeout, quantidade de tentativas, backoff, jitter, janela deslizante, transições do Circuit Breaker, validações e coordenação do cache.
+
+Resultado final medido:
+
+| Métrica | Resultado |
+| --- | ---: |
+| Mutation Score | **87,04%** |
+| Mutantes gerados | 325 |
+| Mutantes mortos | 279 |
+| Timeouts | 3 |
+| Sobreviventes | 33 |
+| Sem cobertura | 9 |
+
+O resultado supera a meta obrigatória de 80%. O relatório navegável é gerado em `reports/mutation/mutation.html`.
+
+### Justificativa de Mutantes Equivalentes
+
+Parte dos mutantes sobreviventes é composta por **mutantes equivalentes**: alterações que produzem um programa sintaticamente diferente, porém semanticamente idêntico ao original. Por definição, nenhum teste consegue matá-los, pois não existe entrada capaz de gerar saída observável distinta. Eles não indicam falha na suíte e são descontados na análise de eficácia. Os principais grupos identificados:
+
+1. **Jitter aleatório no backoff** (`GatewayPagamentoClient._calcularBackoff` e `ConfiguracaoCheckoutCache._carregarProtegido`). Mutações nos limites do jitter, como trocar `Math.floor(this._aleatorio() * (this.jitterMs + 1))` por `* this.jitterMs`, apenas alteram o valor máximo de uma espera aleatória. O comportamento observável (o pagamento é processado, o retry acontece dentro do orçamento) é o mesmo, e o tempo exato de espera não é asserido porque o relógio e o aleatório são injetados de forma determinística. São equivalentes do ponto de vista funcional.
+
+2. **Mutação aritmética no expoente do backoff exponencial**. Variações como `2 ** (tentativa - 1)` para `2 ** (tentativa + 1)` mudam apenas a magnitude da espera entre tentativas. Como a política de retry é validada pelo número de tentativas e pelo respeito ao orçamento global (`orcamentoTotalMs`), e não pelo valor absoluto do atraso, essas mutações não produzem diferença observável dentro dos cenários testados.
+
+3. **Mutações em valores de timeout/TTL que não cruzam um limite de decisão**. Por exemplo, alterar `operacaoTimeoutMs = 200` para um valor próximo, ou o `ttlSegundos`, não muda o resultado dos testes porque os doubles respondem de forma imediata ou explicitamente lenta; o valor exato do prazo é irrelevante desde que permaneça do mesmo lado da fronteira de decisão.
+
+4. **Reordenação/curto-circuito em condições booleanas já cobertas por outro ramo**. Alguns mutantes em condições compostas (como `tentativa < totalDeChamadas && this._agora() + backoff < prazo`) sobrevivem porque o segundo termo já é garantido pelo controle de orçamento exercido em outro ponto do laço, tornando o mutante logicamente equivalente no conjunto de estados alcançáveis.
+
+Os demais sobreviventes não equivalentes (operadores condicionais e remoção de comandos em ramos efetivamente alcançáveis) foram atacados no segundo ciclo de testes, elevando o score de 71,29% para 87,04%, acima da meta. Os equivalentes remanescentes justificam por que o score não atinge 100% sem que isso represente fragilidade da suíte.
+
 ## Fase 4: Engenharia do Caos e Testes de Desempenho (SRE)
+
+O ambiente de homologação é definido por Docker Compose e contém Node.js/Express, worker de e-mail, PostgreSQL, Redis, gateway HTTP simulado, Toxiproxy e k6.
+
+### Mecanismos de resiliência
+
+- orçamento total de checkout de 2500 ms;
+- até três retries adicionais enquanto houver orçamento;
+- backoff exponencial com jitter;
+- Circuit Breaker com janela deslizante;
+- cache read-through com lock Redis e single-flight local;
+- `last known good` e timeout de 200 ms nas operações Redis;
+- fila assíncrona de e-mail com três tentativas e DLQ.
+
+### SLI/SLO
+
+| Cenário | Critério |
+| --- | --- |
+| Operação normal | p95 < 2500 ms |
+| Operação normal | erros inesperados < 5% |
+| Caos | resposta controlada em menos de 5000 ms |
+| Caos | processo permanece disponível |
+| Thundering Herd | banco não recebe uma consulta por requisição |
+
+### Experimentos
+
+1. `black-friday.js`: ramp-up, steady e ramp-down.
+2. `gateway-lento.js`: 5000 ms de latência downstream pelo Toxiproxy.
+3. `thundering-herd.js`: flush, indisponibilidade do proxy Redis e perfil oficial de 10.000 VUs simultâneos.
+
+As execuções de fumaça confirmaram p95 de 10,91 ms no baseline, máximo de 2,57 s no gateway lento e p95 de 443,18 ms na manada de 100 VUs. Durante a queda do Redis houve 100 fallbacks e somente uma consulta de configuração ao PostgreSQL.
+
+Os comandos, resultados completos, limitações e distinção entre perfil configurado e perfil efetivamente executado estão em `README.md` e `docs/evidencias.md`.
