@@ -8,14 +8,6 @@ class PedidoObjectMother {
 
     }
 
-    static pedidoSemItens() {
-
-        return new PedidoBuilder()
-            .semItens()
-            .build();
-
-    }
-
     static pedidoComValorAlto() {
 
         return new PedidoBuilder()

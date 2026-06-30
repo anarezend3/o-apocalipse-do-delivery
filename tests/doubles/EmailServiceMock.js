@@ -2,12 +2,15 @@ class EmailServiceMock {
   constructor() {
     this.enviado = false;
     this.destinatario = null;
+    this.mensagens = [];
   }
 
-  async enviarConfirmacao(email, mensagem) {
+  publicar(mensagem) {
     this.enviado = true;
-    this.destinatario = email;
+    this.destinatario = mensagem.destinatario;
     this.mensagem = mensagem;
+    this.mensagens.push(mensagem);
+    return Promise.resolve(1);
   }
 }
 

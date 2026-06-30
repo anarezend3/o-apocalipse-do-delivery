@@ -11,13 +11,8 @@ describe('PedidoObjectMother', () => {
 
     });
 
-    test('pedido sem itens', () => {
-
-        const pedido =
-            PedidoObjectMother.pedidoSemItens();
-
-        expect(pedido.itens.length).toBe(0);
-
+    test('pedido com valor alto', () => {
+        expect(PedidoObjectMother.pedidoComValorAlto().valor).toBe(100000);
     });
 
 });

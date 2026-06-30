@@ -1,107 +1,111 @@
 const { Given, When, Then } = require('@cucumber/cucumber');
-const assert = require('assert');
-
+const assert = require('node:assert/strict');
 const { CheckoutService } = require('../../../src/services/CheckoutService');
+const { GatewayPagamentoClient } = require('../../../src/infra/GatewayPagamentoClient');
+const { CircuitBreaker } = require('../../../src/infra/CircuitBreaker');
 const { PedidoBuilder } = require('../../builders/PedidoBuilder');
 const { GatewayPagamentoStub } = require('../../doubles/GatewayPagamentoStub');
 const { EmailServiceMock } = require('../../doubles/EmailServiceMock');
-const { PedidoRepositoryMock } = require('../../doubles/PedidoRepositoryMock');
-const { CircuitBreaker } = require('../../../src/infra/CircuitBreaker');
-
-let service;
-let resultado;
-let gateway;
-let emailMock;
-let repo;
+const { PedidoRepositoryMock } = require('../../doubles/PedidoRepositorioMock');
+const { SolicitacaoCheckout } = require('../../../src/domain/SolicitacaoCheckout');
 
 Given('um sistema de checkout disponível', function () {
-  gateway = new GatewayPagamentoStub();
-  emailMock = new EmailServiceMock();
-  repo = new PedidoRepositoryMock();
+  this.gateway = new GatewayPagamentoStub();
+  this.filaEmail = new EmailServiceMock();
+  this.repository = new PedidoRepositoryMock();
+  this.client = new GatewayPagamentoClient(this.gateway, new CircuitBreaker(), {
+    timeoutMs: 20,
+    orcamentoTotalMs: 100,
+    intervaloBackoffMs: 0,
+    jitterMs: 0,
+  });
+  this.service = new CheckoutService(this.client, this.repository, this.filaEmail);
+});
 
-  const circuitBreaker = new CircuitBreaker();
-
-  service = new CheckoutService(gateway, repo, emailMock, circuitBreaker);
+Given('um pedido válido', function () {
+  this.pedido = new PedidoBuilder().build();
 });
 
 Given('um pedido válido com valor maior que zero', function () {
-  this.pedido = PedidoBuilder.umPedidoValido().build();
+  this.pedido = new PedidoBuilder().build();
 });
 
 Given('um cartão válido', function () {
-  this.pedido.cartao = { numero: '1234', validade: '12/30', cvv: '123' };
+  assert.ok(this.pedido.cartao.numero);
 });
 
 Given('um pedido sem email ou valor inválido', function () {
-  this.pedido = PedidoBuilder.umPedidoInvalido().build();
+  this.payload = { clienteEmail: '', valor: 0, cartao: {} };
+});
+
+Given('o gateway responderá {string}', function (status) {
+  this.gateway.setCenario(status);
 });
 
 Given('o gateway falha na primeira tentativa e aprova na segunda', function () {
-  gateway.setCenario('FALHA_DEPOIS_APROVA');
+  this.gateway.setCenario('FALHA_DEPOIS_APROVA');
 });
 
 Given('o gateway falha em todas as tentativas', function () {
-  gateway.setCenario('FALHA_TOTAL');
-});
-
-When('o cliente realiza o checkout', async function () {
-  resultado = await service.processar(this.pedido);
-});
-
-When('o gateway responde {string}', function (status) {
-  gateway.setCenario(status);
-});
-
-Then('o pedido deve ter status {string}', function (status) {
-  assert.strictEqual(this.pedido.status, status);
-});
-
-Then('um email de confirmação deve ser enviado', function () {
-  assert.strictEqual(emailMock.enviado, true);
-});
-
-Then('nenhum email deve ser enviado', function () {
-  assert.strictEqual(emailMock.enviado, false);
-});
-
-Then('o sistema deve retornar sucesso {string}', function (code) {
-  assert.ok(resultado !== null);
-});
-
-Then('o sistema deve retornar erro {string}', function () {
-  assert.ok(resultado === null);
-});
-
-Then('o gateway não deve ser chamado', function () {
-  assert.strictEqual(gateway.chamadas, 0);
+  this.gateway.setCenario('FALHA_TOTAL');
 });
 
 Given('o gateway demora mais que o tempo permitido', function () {
-
-    this.gateway.cobrar = jest.fn().mockRejectedValue(
-        new Error('Timeout')
-    );
-
-});
-
-Then('o sistema deve retornar erro 500', function () {
-
-    expect(this.resultado.httpStatus).toBe(500);
-
+  this.gateway.setCenario('TIMEOUT');
 });
 
 Given('o gateway está indisponível', function () {
+  this.gateway.setCenario('FALHA_TOTAL');
+});
 
-    this.gateway.cobrar = jest.fn().mockRejectedValue(
-        new Error('Gateway indisponível')
-    );
+When('o cliente realiza o checkout', async function () {
+  if (this.payload) {
+    try {
+      SolicitacaoCheckout.criar(this.payload);
+    } catch (erro) {
+      this.erroValidacao = erro;
+    }
+    return;
+  }
+  this.resultado = await this.service.processar(this.pedido);
+});
 
+Then('o pedido deve ter status {string}', function (status) {
+  assert.equal(this.pedido.status, status);
+});
+
+Then('um email de confirmação deve ser enviado', function () {
+  assert.equal(this.filaEmail.enviado, true);
+});
+
+Then('um email deve ser enviado', function () {
+  assert.equal(this.filaEmail.enviado, true);
 });
 
 Then('nenhum email deve ser enviado', function () {
+  assert.equal(this.filaEmail.enviado, false);
+});
 
-    expect(
-        this.emailMock.enviarConfirmacao
-    ).not.toHaveBeenCalled();
+Then('o sistema deve retornar sucesso {string}', function (codigo) {
+  assert.equal(this.resultado.httpStatus, Number(codigo));
+});
 
+Then('o sistema deve retornar erro {string}', function (codigo) {
+  if (this.erroValidacao) {
+    assert.equal(Number(codigo), 400);
+  } else {
+    assert.equal(this.resultado.httpStatus, Number(codigo));
+  }
+});
+
+Then('o sistema deve tentar novamente automaticamente', function () {
+  assert.equal(this.gateway.chamadas, 2);
+});
+
+Then('o sistema deve acionar fallback', function () {
+  assert.equal(this.resultado.httpStatus, 500);
+});
+
+Then('o gateway não deve ser chamado', function () {
+  assert.equal(this.gateway.chamadas, 0);
 });
