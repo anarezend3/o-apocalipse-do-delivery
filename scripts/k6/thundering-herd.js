@@ -4,7 +4,7 @@ import { Rate } from 'k6/metrics';
 
 const falhasNaoControladas = new Rate('falhas_nao_controladas');
 const baseUrl = __ENV.BASE_URL || 'http://localhost:3000';
-const vus = Number(__ENV.VUS || 10000);
+const vus = 10000;
 
 export const options = {
   scenarios: {
