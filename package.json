@@ -1,0 +1,17 @@
+{
+  "name": "checkout-refatorado",
+  "version": "1.0.0",
+  "description": "Projeto da Fase 2 - TDD, BDD e Padrões de Projeto",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "bdd": "cucumber-js tests/bdd",
+    "start": "node src/server.js"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^11.3.0",
+    "jest": "^30.0.5"
+  }
+}
