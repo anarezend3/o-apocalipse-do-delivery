@@ -6,7 +6,7 @@
 
 O Grafo de Fluxo de Controle representa os principais caminhos de execução do método de processamento de pedidos.
 
-![Grafo de Fluxo de Controle](../docs/imagens/grafo.png)
+![Grafo de Fluxo de Controle](../docs/imagens/grafo-atualizado.png)
 
 O fluxo inicia no nó 1, passa pela chamada ao gateway de pagamento no nó 2 e segue para a verificação de aprovação no nó 3. A partir desse ponto, existem três caminhos principais:
 
