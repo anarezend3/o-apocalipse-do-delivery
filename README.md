@@ -86,14 +86,7 @@ Thundering Herd oficial com 10.000 VUs:
 .\scripts\chaos\thundering-herd.ps1
 ```
 
-Para validar em máquina local com menos recursos:
-
-```powershell
-$env:VUS = '100'
-.\scripts\chaos\thundering-herd.ps1
-```
-
-Os scripts restauram os proxies no bloco `finally`. Resultados reais da execução de fumaça estão em [docs/evidencias.md](docs/evidencias.md); o cenário de 10.000 VUs requer host dimensionado e não deve ser apresentado como executado sem sua respectiva evidência.
+Os scripts restauram os proxies no bloco `finally`. Resultados reais das execuções estão em [docs/evidencias.md](docs/evidencias.md).
 
 ## Endpoints operacionais
 

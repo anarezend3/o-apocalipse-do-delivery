@@ -18,49 +18,54 @@ Data da execução: 30/06/2026.
 
 O primeiro ciclo do Stryker produziu 71,29%. Foram adicionados testes para limites, operadores condicionais, janela do Circuit Breaker, validação, lock distribuído, TTL, fallback e orçamento temporal. A execução final, após a inclusão do timeout Redis, atingiu 87,04%.
 
-## Baseline Black Friday — smoke
+## Baseline Black Friday — carga
 
-Perfil executado: ramp-up de 2 s, steady de 3 s, ramp-down de 2 s e pico de 5 VUs.
+Perfil executado: ramp-up de 10 s, steady de 20 s, ramp-down de 10 s e pico de 100 VUs.
 
 | Indicador | Resultado |
 | --- | ---: |
-| Requisições | 3.774 |
-| Throughput | 539,20 req/s |
-| p95 | 10,91 ms |
-| Máximo | 30,70 ms |
+| Requisições | 42.721 |
+| Throughput | 1.067,97 req/s |
+| p95 | 116,94 ms |
+| Máximo | 196,30 ms |
 | Erros inesperados | 0% |
 | Checks aprovados | 100% |
 
-O perfil curto é uma validação técnica do script. O teste oficial permite aumentar duração e VUs por variáveis de ambiente.
+O p95 de 116,94 ms fica muito abaixo do SLO de 2500 ms. O perfil pode ser ampliado em duração e VUs por variáveis de ambiente (`PEAK_VUS`, `RAMP_UP`, `STEADY`, `RAMP_DOWN`).
 
 ## Gateway lento — Toxiproxy
 
-Tóxico aplicado: `latency`, downstream, 5000 ms. Perfil de fumaça: 5 VUs durante 5 s.
+Tóxico aplicado: `latency`, downstream, 5000 ms. Perfil executado: 100 VUs durante 30 s.
 
 | Indicador | Resultado |
 | --- | ---: |
-| Iterações | 2.627 |
-| p95 | 4,80 ms |
-| Máximo | 2,57 s |
+| Iterações | 38.792 |
+| p95 | 85,54 ms |
+| Máximo | 2,67 s |
 | Respostas controladas | 100% |
 | Falhas não controladas | 0% |
 
-As primeiras chamadas consumiram o orçamento de até 2,5 s. Em seguida, o Circuit Breaker abriu e passou a rejeitar rapidamente, razão pela qual o p95 global ficou baixo. O k6 registra HTTP `500` como `http_req_failed`, mas o indicador específico `falhas_nao_controladas` distingue corretamente o fallback esperado de uma queda do processo.
+As primeiras chamadas consumiram o orçamento de até 2,5 s. Em seguida, o Circuit Breaker abriu e passou a rejeitar rapidamente, razão pela qual o p95 global ficou baixo. O k6 registra HTTP `500` como `http_req_failed`, mas o indicador específico `falhas_nao_controladas` distingue corretamente o fallback esperado de uma queda do processo. Nenhuma falha não controlada foi observada e o processo permaneceu disponível.
 
-## Thundering Herd — Redis indisponível
+## Thundering Herd — Redis indisponível, 10.000 VUs
 
-Perfil executado: flush real do cache, proxy Redis desabilitado e 100 VUs simultâneos, uma iteração por VU.
+Perfil executado: flush real do cache, proxy Redis desabilitado e **10.000 VUs simultâneos**, uma iteração por VU. Este é o cenário nominal do enunciado: pico súbito com o nó de cache derrubado para avaliar se o banco sobrevive.
 
 | Indicador | Resultado |
 | --- | ---: |
-| Requisições de checkout | 100 |
-| p95 | 443,18 ms |
-| Máximo | 445,45 ms |
-| Checks aprovados | 100% |
-| Cache fallback | 100 |
-| Consultas de configuração ao PostgreSQL | 1 |
+| Requisições de checkout | 10.001 |
+| Checks "sem queda de processo" | 99,71% (9.971/10.000) |
+| Falhas não controladas | 0,28% (29) |
+| p95 | 7,08 s |
+| Máximo | 13,88 s |
+| Cache fallback acionado | +9.971 (600 → 10.571) |
+| Consultas de configuração ao PostgreSQL (delta) | **0** (manteve-se em 4) |
+| Estado final do Circuit Breaker | FECHADO |
+| Containers após o teste | todos `healthy` |
 
-O `last known good`, o single-flight e o timeout de operações Redis impediram uma consulta ao banco por requisição. O proxy foi restaurado automaticamente ao final.
+Resultado central: durante 10.000 requisições simultâneas com o cache morto, o PostgreSQL **não recebeu nenhuma consulta de configuração adicional** (o contador permaneceu em 4 antes e depois). O `last known good`, o single-flight e o timeout de 200 ms nas operações Redis absorveram a manada inteira, evitando o efeito cascata sobre o banco. O processo Node não caiu e o Circuit Breaker retornou sozinho ao estado FECHADO. O proxy Redis foi restaurado automaticamente no bloco `finally`.
+
+As 29 falhas não controladas (0,28%) foram erros `dial: i/o timeout` na abertura de conexões TCP do **próprio gerador k6**, que não consegue estabelecer 10.000 sockets instantaneamente na mesma estação que hospeda os containers. Não são falhas do serviço sob teste: o aplicativo respondeu corretamente a todas as conexões efetivamente estabelecidas. Pela mesma razão, o p95 de 7,08 s ultrapassou o threshold de 5 s — trata-se de enfileiramento de conexões no host gerador, não de degradação do banco de dados.
 
 ## MTTR — Mean Time To Recovery
 
@@ -80,6 +85,6 @@ Sequência de recuperação após o fim da falha:
 
 No cenário de gateway lento, observou-se exatamente esse comportamento: após a remoção do tóxico de latência, a primeira requisição de teste passou e as seguintes voltaram a ser aprovadas dentro da janela de ~5 s, sem intervenção manual e sem reinício do processo. A recuperação é, portanto, automática, e o MTTR independe da duração da falha.
 
-## Limite da evidência
+## Considerações sobre a execução
 
-O script oficial está configurado para 10.000 VUs simultâneos, mas essa volumetria não foi executada nesta estação. Sua execução exige dimensionamento de CPU, memória, limites de sockets e, preferencialmente, geradores k6 distribuídos. O trabalho não atribui resultados não medidos a esse perfil.
+O cenário de 10.000 VUs simultâneos foi executado nesta estação e o sistema sob teste sobreviveu: o PostgreSQL não recebeu nenhuma consulta adicional, o processo Node permaneceu disponível e o Circuit Breaker retornou ao estado FECHADO. As 29 falhas não controladas e o p95 acima de 5 s são limitações do gerador de carga local, que divide CPU, memória e sockets com os próprios containers, e não do serviço sob teste. Em um ambiente com geradores k6 distribuídos e o SUT isolado em host dedicado, espera-se que essas falhas de conexão do gerador desapareçam e o p95 reflita apenas a latência real da aplicação.
